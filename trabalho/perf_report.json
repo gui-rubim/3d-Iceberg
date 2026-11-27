@@ -1,0 +1,71 @@
+{
+ "res": "2560x1440",
+ "adapter": "apple metal-3  ",
+ "ua": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/159.0.0.0 Safari/537.36",
+ "segments": {
+  "acima da água (y > 1,5 m)": {
+   "gpu_ms": {
+    "n": 330,
+    "mean": 74.2,
+    "p50": 70.57,
+    "p99": 95.86,
+    "max": 96.8
+   },
+   "intervalo_quadro_ms": {
+    "n": 330,
+    "mean": 49.99,
+    "p50": 50,
+    "p99": 50,
+    "max": 50
+   }
+  },
+  "travessia (|y| <= 1,5 m)": {
+   "gpu_ms": {
+    "n": 80,
+    "mean": 60.24,
+    "p50": 64.8,
+    "p99": 79.92,
+    "max": 79.92
+   },
+   "intervalo_quadro_ms": {
+    "n": 80,
+    "mean": 49.35,
+    "p50": 50,
+    "p99": 50,
+    "max": 50
+   }
+  },
+  "submerso (y < -1,5 m)": {
+   "gpu_ms": {
+    "n": 791,
+    "mean": 65.17,
+    "p50": 65.57,
+    "p99": 76.85,
+    "max": 81.45
+   },
+   "intervalo_quadro_ms": {
+    "n": 791,
+    "mean": 49.99,
+    "p50": 50,
+    "p99": 50,
+    "max": 50
+   }
+  },
+  "total": {
+   "gpu_ms": {
+    "n": 1201,
+    "mean": 67.33,
+    "p50": 65.95,
+    "p99": 93.76,
+    "max": 96.8
+   },
+   "intervalo_quadro_ms": {
+    "n": 1201,
+    "mean": 49.95,
+    "p50": 50,
+    "p99": 50,
+    "max": 50
+   }
+  }
+ }
+}

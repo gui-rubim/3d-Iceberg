@@ -1,0 +1,4 @@
+{ "descricao": "Entradas gravadas da sequência de 60 s (passo fixo de 1/60 s). Espaço inicia o passeio automático de descida aos 5 s e o de subida aos 35 s.",
+  "fps": 60, "frames": 3600,
+  "eventos": [ { "frame": 300, "tipo": "keydown", "code": "Space" }, { "frame": 302, "tipo": "keyup", "code": "Space" },
+               { "frame": 2100, "tipo": "keydown", "code": "Space" }, { "frame": 2102, "tipo": "keyup", "code": "Space" } ] }

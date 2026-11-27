@@ -1,0 +1,161 @@
+{
+ "total": 31,
+ "falhas": 0,
+ "resultados": [
+  {
+   "teste": "rolagem para baixo aumenta a profundidade",
+   "passou": true,
+   "info": "0.5000 -> 0.6649"
+  },
+  {
+   "teste": "rolagem para cima diminui a profundidade",
+   "passou": true,
+   "info": "0.6649 -> 0.3355"
+  },
+  {
+   "teste": "rolagem tem inércia e suavização (sem salto, continua após o evento)",
+   "passou": true,
+   "info": "1 quadro: 0.5000, 32 quadros: 0.5673"
+  },
+  {
+   "teste": "extremo inferior trava em 1",
+   "passou": true,
+   "info": "d=0.9999999999999993"
+  },
+  {
+   "teste": "extremo superior trava em 0",
+   "passou": true,
+   "info": "d=5.895316396435186e-18"
+  },
+  {
+   "teste": "arrasto vertical para cima desce (como a rolagem)",
+   "passou": true,
+   "info": "0.5000 -> 0.6502"
+  },
+  {
+   "teste": "arrasto vertical para baixo sobe",
+   "passou": true,
+   "info": "0.6502 -> 0.4246"
+  },
+  {
+   "teste": "arrasto horizontal gira a câmera em volta do iceberg",
+   "passou": true,
+   "info": "az 0.0000 -> -1.7968"
+  },
+  {
+   "teste": "arrasto vertical com o dedo (toque) desce",
+   "passou": true,
+   "info": "0.5000 -> 0.6502"
+  },
+  {
+   "teste": "S desce (contínuo enquanto segura, para ao soltar)",
+   "passou": true,
+   "info": "0.5000 -> 0.6255 -> 0.8234 | solto: 0.9000"
+  },
+  {
+   "teste": "seta para baixo desce (contínuo enquanto segura, para ao soltar)",
+   "passou": true,
+   "info": "0.5000 -> 0.6255 -> 0.8234 | solto: 0.9000"
+  },
+  {
+   "teste": "W sobe (contínuo enquanto segura, para ao soltar)",
+   "passou": true,
+   "info": "0.5000 -> 0.3745 -> 0.1766 | solto: 0.1000"
+  },
+  {
+   "teste": "seta para cima sobe (contínuo enquanto segura, para ao soltar)",
+   "passou": true,
+   "info": "0.5000 -> 0.3745 -> 0.1766 | solto: 0.1000"
+  },
+  {
+   "teste": "End vai ao fundo",
+   "passou": true,
+   "info": "d=1.0000"
+  },
+  {
+   "teste": "Home vai ao topo",
+   "passou": true,
+   "info": "d=0.0000"
+  },
+  {
+   "teste": "Espaço inicia a descida automática a partir do topo",
+   "passou": true,
+   "info": "auto=1 d=0.2491"
+  },
+  {
+   "teste": "Espaço de novo inverte para a subida automática",
+   "passou": true,
+   "info": "auto=2 d 0.2491 -> 0.0744"
+  },
+  {
+   "teste": "passeio automático chega ao fundo e encerra",
+   "passou": true,
+   "info": "d=1.0000 auto=0"
+  },
+  {
+   "teste": "passeio automático volta ao topo e encerra",
+   "passou": true,
+   "info": "d=0.0000 auto=0"
+  },
+  {
+   "teste": "C troca para órbita lenta (azimute avança sozinho)",
+   "passou": true,
+   "info": "modo=0 az -0.0001 -> -0.0560"
+  },
+  {
+   "teste": "C volta para câmera fixa de frente",
+   "passou": true,
+   "info": "modo=1 az=-0.0000"
+  },
+  {
+   "teste": "D gira a câmera",
+   "passou": true,
+   "info": "az 0.0000 -> 0.3690"
+  },
+  {
+   "teste": "A gira no sentido oposto",
+   "passou": true,
+   "info": "az 0.5479 -> 0.1810"
+  },
+  {
+   "teste": "a página não rola e o canvas ocupa a tela toda",
+   "passou": true,
+   "info": "{\"sx\":0,\"sy\":0,\"sh\":720,\"ih\":720,\"w\":1280,\"h\":720,\"iw\":1280}"
+  },
+  {
+   "teste": "sequência roteirizada tem 3600 quadros (60 s a 1/60 s)",
+   "passou": true,
+   "info": "3600 quadros"
+  },
+  {
+   "teste": "sequência roteirizada vai do topo ao fundo e volta",
+   "passou": true,
+   "info": "d mín 0.0000 máx 1.0000"
+  },
+  {
+   "teste": "nenhum quadro com câmera em estado inválido (NaN, direção não unitária, d fora de 0..1)",
+   "passou": true,
+   "info": "0 quadros inválidos"
+  },
+  {
+   "teste": "movimento contínuo, sem salto de câmera entre quadros",
+   "passou": true,
+   "info": "maior passo 0.507 m/quadro"
+  },
+  {
+   "teste": "câmera nunca atravessa o gelo (distância mínima ao gelo > 5 m)",
+   "passou": true,
+   "info": "mínimo 38.6 m em y=-2.4"
+  },
+  {
+   "teste": "câmera dentro do mundo: raio <= 215 m, y entre -216 e 16 m (sem piso nem parede para mostrar)",
+   "passou": true,
+   "info": "raio máx 205.3 m, y -215.0..15.0"
+  },
+  {
+   "teste": "varredura de todas as profundidades e azimutes alcançáveis: sem atravessar o gelo",
+   "passou": true,
+   "info": "distância mínima 33.2 m"
+  }
+ ]
+}

@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Iceberg</title>
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#01030a;overscroll-behavior:none}
+#c{position:fixed;inset:0;width:100vw;height:100vh;display:block;touch-action:none;cursor:ns-resize}
+#load{position:fixed;left:0;top:50%;width:100vw;height:1px;background:#9fc4ff;opacity:.55;transform-origin:0 50%;transform:scaleX(0);transition:transform .2s linear}
+#msg{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;color:#9fc4ff;font:14px system-ui,sans-serif;pointer-events:none}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas><div id="load"></div><div id="msg"></div>
+<script>
+const SH=/*__SHADERS__*/;
+/*__MAIN__*/
+</script>
+</body>
+</html>
