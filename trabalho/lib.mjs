@@ -6,12 +6,18 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 export const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const ROOT = path.resolve(HERE, '..');
-const EXE = path.join(HERE, 'browsers/chromium-1255/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing');
-export const FFMPEG = path.join(HERE, 'node_modules/ffmpeg-static/ffmpeg');
+const MAC = process.platform === 'darwin';
+const EXE = process.env.CHROME || (MAC ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' : '/usr/bin/google-chrome');
+const LOCAL_FF = path.join(HERE, 'node_modules/ffmpeg-static/ffmpeg');
+export const FFMPEG = process.env.FFMPEG || (fs.existsSync(LOCAL_FF) ? LOCAL_FF : 'ffmpeg');
+// macOS: ANGLE on Metal. Linux: Dawn needs Vulkan turned on explicitly.
+// canvas preferred format: bgra8unorm on macOS, rgba8unorm on Linux (raw frame dumps follow it)
+export const PIXFMT = MAC ? 'bgra' : 'rgba';
+const GPU_ARGS = MAC ? ['--use-angle=metal'] : ['--use-angle=vulkan', '--enable-features=Vulkan,WebGPUDeveloperFeatures'];
 export async function launch({ headless = true, w = 2560, h = 1440, extra = [] } = {}) {
   const browser = await chromium.launch({ headless, executablePath: EXE, args: [
     '--enable-unsafe-webgpu', '--enable-features=WebGPUDeveloperFeatures', '--enable-dawn-features=allow_unsafe_apis',
-    '--use-angle=metal', '--ignore-gpu-blocklist', '--enable-gpu', '--disable-background-timer-throttling',
+    ...GPU_ARGS, '--ignore-gpu-blocklist', '--enable-gpu', '--disable-background-timer-throttling',
     '--disable-renderer-backgrounding', '--disable-backgrounding-occluded-windows', ...extra] });
   const ctx = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 1 });
   const page = await ctx.newPage();

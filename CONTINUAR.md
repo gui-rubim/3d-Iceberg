@@ -68,26 +68,30 @@ O Chrome está em `/Applications/Google Chrome.app`. O `/opt/homebrew/bin/python
 ## ESTADO ATUAL (não recomece do zero)
 
 **O que existe**
-- `source/`: `common.wgsl`, `bake.wgsl`, `waves.wgsl`, `scene.wgsl`, `post.wgsl`, `particles.wgsl`, `main.js`, `index.template.html`, `build.mjs`. `node source/build.mjs` gera o `index.html` autocontido (74 KB); `--raw` mantém o WGSL legível.
+- `source/`: `common.wgsl`, `bake.wgsl`, `waves.wgsl`, `scene.wgsl`, `post.wgsl`, `particles.wgsl`, `main.js`, `index.template.html`, `build.mjs`. `node source/build.mjs` gera o `index.html` autocontido (77 KB); `--raw` mantém o WGSL legível.
 - Arquitetura: o iceberg é um campo de distância assado na carga num volume 3D (256×320×256), com um segundo volume de luz (sombra da lua, oclusão do céu, espessura). Um shader de tela cheia faz ray marching do gelo, intersecta o oceano (3 cascatas de ondas em compute, com mips), traça reflexo e refração e integra o meio subaquático. Depois: TAA, partículas, desfoque de movimento, bloom, exposição automática e composição final (gotas na lente, menisco, indicador de profundidade). A câmera acompanha a ondulação perto da superfície usando uma cópia em CPU das duas cascatas longas.
-- `trabalho/` (ferramentas em node + Playwright): `lib.mjs` (lança o navegador e serve a pasta), `shot.mjs` e `sheet.mjs` (renders avulsos), `capture.mjs` (6 poses + sequência de 60 s com `entradas.json`; vídeo pelo codificador H.264 do navegador; quadros do crítico sem perdas), `pacote.mjs` (recortes 1:1 e folhas de contato), `montage.mjs`, `perf.mjs` (tempo de GPU por timestamp query, janela visível), `teste_controles.mjs`, `teste_alocacao.mjs`, `heapflat.mjs`.
+- Câmera (mudou em 27/11/2026, a pedido do dono do projeto): a página abre na câmera fixa de frente em **descida reta**, a 280 m do iceberg, mesma distância e inclinação do topo ao fundo; só a altura muda. `V` alterna para o caminho original (aproxima e inclina conforme desce), `C` liga a órbita lenta. O gelo flutuante foi tirado da faixa de 105 a 305 m do centro para a câmera não cruzar nenhum pedaço.
+- Luz de preenchimento no gelo fundo ("deep fill" em `scene.wgsl`), também a pedido: a base do iceberg não some mais no preto.
+- `trabalho/` (ferramentas em node + Playwright): `lib.mjs` (lança o navegador e serve a pasta; funciona em macOS e em Linux com Vulkan), `shot.mjs` e `sheet.mjs` (renders avulsos; `straight=1` usa a descida reta), `capture.mjs` (6 poses + sequência de 60 s com `entradas.json`; vídeo pelo codificador H.264 de hardware do navegador ou, sem ele, quadros crus para o libx264), `pacote.mjs` (recortes 1:1 e folhas de contato), `montage.mjs`, `perf.mjs` (tempo de GPU por timestamp query, janela visível), `teste_controles.mjs`, `teste_alocacao.mjs`, `heapflat.mjs`.
 
 **Verificações**
-- Controles: `teste_controles.mjs` passou 31 de 31, mas a última execução foi antes das mudanças das rodadas 2 e 3 (órbita mais rápida, chaves de câmera novas, lente maior). Precisa rodar de novo.
-- Crítico: três rodadas feitas, sempre sem as imagens de referência em arquivo (só a descrição em texto). Contagem acima de "menor": 13, depois 15, depois 12. Resumos em `trabalho/critico/rodadaN_relatorio.md`. As correções da rodada 3 já estão no código, mas a rodada 4 NÃO foi renderizada nem criticada.
-- Desempenho: medido só num Apple A18 Pro (não é o alvo), na versão da rodada 2: 67,3 ms de média de GPU, percentil 99 de 93,8 ms, máximo de 96,8 ms em 2560×1440 (`trabalho/perf_report.json`). Nada foi medido no M4 Max.
-- Alocação por quadro: o estado está todo num `Float64Array`; sobram cerca de 465 B por quadro depois que o JIT aquece, atribuídos aos objetos que a própria API WebGPU devolve (encoder, passes, textura e view do canvas). Não foi reconfirmado depois das últimas mudanças.
-- `descida.mp4` na raiz é o da rodada 3, não o final.
+- Controles: `teste_controles.mjs` passa 35 de 35 (inclui a descida reta). O critério de "salto de câmera" passou a ser a variação de velocidade entre quadros, com teto de 1,0 m por quadro.
+- Alocação por quadro: `teste_alocacao.mjs` passa. Zero alocação no código da página fora dos objetos que a API WebGPU devolve em `render()` (cerca de 370 B por quadro). O estado e os argumentos numéricos passam todos por um `Float64Array`, e há um aquecimento do JIT na carga.
+- Crítico: três rodadas feitas, sempre sem as imagens de referência em arquivo. Contagem acima de "menor": 13, 15, 12. A rodada 4 foi capturada até 75% e interrompida; NÃO foi criticada. Falta decidir se a sequência de 60 s e o vídeo passam a usar a descida reta (hoje `capture.mjs` usa o caminho original com órbita).
+- Desempenho: nada medido no M4 Max. Só existe a medição antiga num Apple A18 Pro (`trabalho/perf_report.json`, 67,3 ms de média em 2560×1440).
+- `descida.mp4`: não existe versão final.
 
 **Pendências já conhecidas**
-- Do crítico da rodada 3, já atacadas mas não reavaliadas: superfície vista de baixo, borrão na travessia, gelo submerso sem cara de gelo, veios parecendo neon, retângulos na água logo após emergir (eram reflexos de estrelas recortados pela célula), gelo emerso com relevo de uma escala só, reflexo liso demais, blocos flutuantes de baixo polígono.
-- "Trama regular nas áreas escuras": apontada duas vezes pelo crítico; não consegui reproduzir no recorte ampliado.
+- Do crítico da rodada 3, atacadas mas não reavaliadas: superfície vista de baixo (ainda parece ruído manchado, janela de Snell com pouco contraste), borrão na travessia, gelo submerso sem cara de gelo, veios parecendo neon, gelo emerso com relevo de uma escala só, reflexo liso demais, blocos flutuantes de baixo polígono.
+- "Trama regular nas áreas escuras": confirmada. Aparece como linhas verticais finas no fundo escuro debaixo d'água, em captura de tela da página e nos renders. Não corrigida.
 - A folha de contato `sequencia_54s` sai com a última célula preta (defeito do `pacote.mjs`, não do render).
+- Servidores com recarga automática (Live Server e parecidos) recarregam a página a cada arquivo gravado na pasta: grave renders e pacotes do crítico FORA da pasta do projeto enquanto alguém estiver com a página aberta.
+- Em Linux, o Chrome só encontra a GPU com `--enable-features=Vulkan`; o Firefox não tem WebGPU ligado.
 
 ## PASSO A PASSO
 
 1. **Confira o ambiente.** `sysctl -n machdep.cpu.brand_string`, `ls /Applications | grep -i chrome`, `which ffmpeg node`. Em `trabalho/` rode `npm i` (instala `playwright` e `ffmpeg-static`).
-2. **Ajuste `trabalho/lib.mjs`.** `EXE` aponta para um Chromium baixado em `trabalho/browsers/`, que não foi copiado. Troque por `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`. `FFMPEG` aponta para `node_modules/ffmpeg-static/ffmpeg`; pode ficar, ou troque pelo `ffmpeg` do PATH.
+2. **Confira `trabalho/lib.mjs`.** Ele já escolhe o Chrome do sistema (macOS ou Linux) e o `ffmpeg` do PATH; as variáveis de ambiente `CHROME` e `FFMPEG` trocam os caminhos.
 3. **Confira `referencia/`.** Se os dois arquivos existirem, olhe-os e passe os caminhos ao crítico no lugar da descrição em texto (bloco REFERÊNCIAS de `trabalho/critico/prompt.md`).
 4. **Build e fumaça.** `node source/build.mjs --raw`, depois `cd trabalho && node sheet.mjs r/s.png "0,0;0.2,0;0.346,0;0.62,0;1,0" res=1280x720 cols=3` e olhe a imagem.
 5. **Controles e alocação.** `node teste_controles.mjs` e `node teste_alocacao.mjs`. Corrija o que falhar.

@@ -145,34 +145,44 @@
   const LOGN = 9000;
   const log = { n: 0, t: new Float32Array(LOGN), y: new Float32Array(LOGN), gpu: new Float32Array(LOGN), cpu: new Float32Array(LOGN), parts: new Float32Array(LOGN * 6) };
   if (qs) for (let i = 0; i < 8; i++) { const b = device.createBuffer({ size: NQ * 8, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ }); qPool.push(b); qFree.push(b); }
-  const tw = (a) => (qs ? { querySet: qs, beginningOfPassWriteIndex: a, endOfPassWriteIndex: a + 1 } : undefined);
-  const twCompute = { timestampWrites: tw(0) };
+  const TW = [];
+  for (let a = 0; a < NQ; a += 2) TW.push(qs ? { querySet: qs, beginningOfPassWriteIndex: a, endOfPassWriteIndex: a + 1 } : undefined);
+  const twCompute = { timestampWrites: TW[0] };
 
   // ---------------- state ----------------
   // All mutable state lives in one Float64Array (no boxed numbers, nothing for the GC to do per frame).
-  const F = new Float64Array(26);
-  const _d = 0, _vel = 1, _target = 2, _goal = 3, _az = 4, _azGoal = 5, _azKey = 6, _mode = 7, _auto = 8, _keys = 9, _time = 10, _frame = 11, _wet = 12, _emerge = 13, _plungeAge = 14, _px = 15, _py = 16, _pz = 17, _lastY = 18, _reset = 19, _drag = 20, _lx = 21, _ly = 22, _pose = 23, _hud = 24, _expo = 25;
+  const F = new Float64Array(34);
+  const _d = 0, _vel = 1, _target = 2, _goal = 3, _az = 4, _azGoal = 5, _azKey = 6, _mode = 7, _auto = 8, _keys = 9, _time = 10, _frame = 11, _wet = 12, _emerge = 13, _plungeAge = 14, _px = 15, _py = 16, _pz = 17, _lastY = 18, _reset = 19, _drag = 20, _lx = 21, _ly = 22, _pose = 23, _hud = 24, _expo = 25, _dt = 26, _last = 27, _a0 = 28, _a1 = 29, _a2 = 30, _r0 = 31, _straight = 32, _sb = 33;
   F[_py] = -1;
   F[_lastY] = 15;
   F[_emerge] = 99;
   F[_plungeAge] = 99;
   F[_reset] = 1;
   F[_hud] = 1;
+  F[_mode] = 1;      // opens on the fixed front camera
+  F[_straight] = 1;  // ...going straight down: same distance and tilt as at the top, only the height changes (V toggles)
+  F[_sb] = 1;
   const S = {}; // named view of F for the test / capture harness only
-  ['d','vel','target','goal','az','azGoal','azKey','mode','auto','keys','time','frame','wet','emerge','plungeAge','px','py','pz','lastY','reset','drag','lx','ly','pose','hud','expo'].forEach((n, i) => Object.defineProperty(S, n, { get: () => F[i], set: (v) => { F[i] = v; }, enumerable: true }));
+  ['d','vel','target','goal','az','azGoal','azKey','mode','auto','keys','time','frame','wet','emerge','plungeAge','px','py','pz','lastY','reset','drag','lx','ly','pose','hud','expo','dt','last','a0','a1','a2','r0','straight','sb'].forEach((n, i) => Object.defineProperty(S, n, { get: () => F[i], set: (v) => { F[i] = v; }, enumerable: true }));
   const POSE = new Float32Array(7);
   const DW = 0.2, YTOP = 15, YBOT = -215, LENS = 0.2;
+  const RS = 280; // camera distance in straight mode (the floating-ice ring in scene.wgsl keeps clear of it)
   const KY = [15, 0, -12, -28, -60, -120, -215];
   const KP = [3.1, -2.5, 42, 40, 14, 2, 13];
   const KR = [205, 150, 153, 165, 190, 205, 168];
-  function camY(d) { if (d < DW) { const k = 1 - d / DW; return YTOP * k * k; } return YBOT * Math.pow((d - DW) / (1 - DW), 1.7); }
-  function key(tab, y) {
+  // Helpers called from the frame take their number arguments in F[_a0.._a2] and leave the result in F[_r0]:
+  // a double passed to or returned from a call that the JIT did not inline is a heap allocation.
+  function camYs() { const d = F[_a0]; if (d < DW) { const k = 1 - d / DW; F[_r0] = YTOP * k * k; } else F[_r0] = YBOT * Math.pow((d - DW) / (1 - DW), 1.7); }
+  function camY(d) { F[_a0] = d; camYs(); return F[_r0]; }
+  function key(tab, y) { F[_a0] = y; keys(tab); return F[_r0]; }
+  function keys(tab) {
+    const y = F[_a0];
     let i = 0; while (i < 5 && y < KY[i + 1]) i++;
     const y0 = KY[i], y1 = KY[i + 1], h = y1 - y0, t = Math.min(1, Math.max(0, (y - y0) / h));
     const m0 = i > 0 ? (tab[i + 1] - tab[i - 1]) / (y1 - KY[i - 1]) : (tab[1] - tab[0]) / h;
     const m1 = i < 5 ? (tab[i + 2] - tab[i]) / (KY[i + 2] - y0) : (tab[6] - tab[5]) / h;
     const t2 = t * t, t3 = t2 * t;
-    return (2 * t3 - 3 * t2 + 1) * tab[i] + (t3 - 2 * t2 + t) * h * m0 + (-2 * t3 + 3 * t2) * tab[i + 1] + (t3 - t2) * h * m1;
+    F[_r0] = (2 * t3 - 3 * t2 + 1) * tab[i] + (t3 - 2 * t2 + t) * h * m0 + (-2 * t3 + 3 * t2) * tab[i + 1] + (t3 - t2) * h * m1;
   }
   // CPU copy of the two long-wave cascades so the camera can ride the swell near the surface
   const WV = new Float32Array(52 * 5);
@@ -195,7 +205,7 @@
       WV[o + 3] = Math.sqrt(9.81 * Math.sqrt(kl2) * s); WV[o + 4] = 2 * Math.PI * g[0];
     }
   })();
-  function waveAt(x, z, t) { let h = 0; for (let o = 0; o < 260; o += 5) h += WV[o + 2] * Math.sin(WV[o] * x + WV[o + 1] * z - WV[o + 3] * t + WV[o + 4]); return h; }
+  function waveAts() { const x = F[_a0], z = F[_a1], t = F[_a2]; let h = 0; for (let o = 0; o < 260; o += 5) h += WV[o + 2] * Math.sin(WV[o] * x + WV[o + 1] * z - WV[o + 3] * t + WV[o + 4]); F[_r0] = h; }
   const HX = new Float32Array(16), HY = new Float32Array(16);
   for (let i = 0; i < 16; i++) { let f = 0.5, r = 0, k = i + 1; while (k) { r += f * (k & 1); k >>= 1; f *= 0.5; } HX[i] = r - 0.5; f = 1 / 3; r = 0; k = i + 1; while (k) { r += f * (k % 3); k = k / 3 | 0; f /= 3; } HY[i] = r - 0.5; }
 
@@ -209,6 +219,7 @@
     if (e.code === 'Home') { F[_goal] = 0; F[_auto] = 0; e.preventDefault(); }
     else if (e.code === 'End') { F[_goal] = 1; F[_auto] = 0; e.preventDefault(); }
     else if (e.code === 'Space') { F[_auto] = F[_auto] === 1 ? 2 : F[_auto] === 2 ? 1 : (F[_d] < 0.5 ? 1 : 2); F[_goal] = F[_target]; e.preventDefault(); }
+    else if (e.code === 'KeyV') { F[_straight] = F[_straight] ? 0 : 1; }
     else if (e.code === 'KeyC') { F[_mode] ^= 1; if (F[_mode]) F[_azGoal] = Math.round(F[_az] / (2 * Math.PI)) * 2 * Math.PI; }
   });
   addEventListener('keyup', (e) => { F[_keys] &= ~keyBit(e.code); });
@@ -230,7 +241,8 @@
   addEventListener('resize', resize);
 
   // ---------------- simulation ----------------
-  function sim(dt) {
+  function sim() {
+    const dt = F[_dt];
     F[_time] += dt;
     if (F[_keys] & K_S) F[_goal] += 0.2 * dt;
     if (F[_keys] & K_W) F[_goal] -= 0.2 * dt;
@@ -247,25 +259,30 @@
     F[_azKey] += (ak * 0.55 - F[_azKey]) * Math.min(1, dt * 5);
     F[_azGoal] += (F[_azKey] + (F[_mode] === 0 ? -0.10471975512 : 0)) * dt;
     F[_az] += (F[_azGoal] - F[_az]) * Math.min(1, dt * 6);
+    F[_sb] += (F[_straight] - F[_sb]) * Math.min(1, dt * 2.5);
   }
 
-  function updateUniforms(dt) {
+  function updateUniforms() {
+    const dt = F[_dt];
     UB.copyWithin(16, 0, 16);
     let cx, cy, cz, fx, fy, fz, wv = 0, tanY = Math.tan(21 * Math.PI / 180);
     if (F[_pose]) {
       cx = POSE[0]; cy = POSE[1]; cz = POSE[2];
       fx = POSE[3] - cx; fy = POSE[4] - cy; fz = POSE[5] - cz;
-      const l = Math.hypot(fx, fy, fz); fx /= l; fy /= l; fz /= l;
+      const l = Math.sqrt(fx * fx + fy * fy + fz * fz); fx /= l; fy /= l; fz /= l;
       if (POSE[6] > 0) tanY = Math.tan(POSE[6] * Math.PI / 360);
     } else {
-      cy = camY(F[_d]);
-      const rad = key(KR, cy), pit = key(KP, cy) * Math.PI / 180;
+      F[_a0] = F[_d]; camYs(); cy = F[_r0];
+      // straight mode holds the top-of-path distance and tilt all the way down; _sb eases between the two paths
+      const sb = F[_sb] * F[_sb] * (3 - 2 * F[_sb]);
+      F[_a0] = cy; keys(KR); const rad = F[_r0] + (RS - F[_r0]) * sb;
+      keys(KP); const pit = (F[_r0] + (KP[0] - F[_r0]) * sb) * Math.PI / 180;
       const sa = Math.sin(F[_az]), ca = Math.cos(F[_az]), cp = Math.cos(pit);
       cx = sa * rad; cz = ca * rad;
       const ar = Math.min(1, Math.max(0, (Math.abs(cy) - 1.5) / 4.5));
-      wv = waveAt(cx, cz, F[_time]) * (1 - ar * ar * (3 - 2 * ar)); cy += wv; fx = -sa * cp; fy = Math.sin(pit); fz = -ca * cp;
+      F[_a0] = cx; F[_a1] = cz; F[_a2] = F[_time]; waveAts(); wv = F[_r0] * (1 - ar * ar * (3 - 2 * ar)); cy += wv; fx = -sa * cp; fy = Math.sin(pit); fz = -ca * cp;
     }
-    let rx = -fz, rz = fx; const rl = Math.hypot(rx, rz); rx /= rl; rz /= rl;
+    let rx = -fz, rz = fx; const rl = Math.sqrt(rx * rx + rz * rz); rx /= rl; rz /= rl;
     const ux = -rz * fy, uy = rz * fx - rx * fz, uz = rx * fy;
     const j = F[_frame] & 15;
     UB[0] = cx; UB[1] = cy; UB[2] = cz; UB[3] = F[_time];
@@ -283,16 +300,15 @@
     UB[40] = F[_d]; UB[41] = F[_wet]; UB[42] = F[_emerge]; UB[43] = DW;
     UB[44] = dt > 0 ? Math.min(2, (1 / 120) / dt) : 0; UB[45] = F[_mode]; UB[46] = F[_hud]; UB[47] = F[_reset];
     UB[48] = F[_px]; UB[49] = F[_py]; UB[50] = F[_pz]; UB[51] = F[_plungeAge];
-    device.queue.writeBuffer(ubuf, 0, UB);
   }
 
   // ---------------- frame ----------------
   const submitList = [null];
   let wantCap = 0;
   function draw(pe, pipe, g0, g1) { pe.setPipeline(pipe); if (g0) pe.setBindGroup(0, g0); pe.setBindGroup(1, g1); pe.draw(3); pe.end(); }
-  function render(dt) {
-    resize();
-    updateUniforms(dt);
+  function render() {
+    updateUniforms();
+    device.queue.writeBuffer(ubuf, 0, UB);
     const r = R, k = F[_frame] & 1;
     const enc = device.createCommandEncoder();
     const cp = enc.beginComputePass(twCompute);
@@ -300,16 +316,16 @@
     cp.setPipeline(pMip);
     for (let l = 0; l < WMIPS - 1; l++) { cp.setBindGroup(1, gMip[l]); const n = Math.max(1, 16 >> l); cp.dispatchWorkgroups(n, n, 3); }
     cp.end();
-    r.pScene.timestampWrites = tw(2); draw(enc.beginRenderPass(r.pScene), pScene, gU.scene, gScene);
-    r.pTaa[k].timestampWrites = tw(4); draw(enc.beginRenderPass(r.pTaa[k]), pTaa, gU.taa, r.gTaa[k]);
-    r.pPart.timestampWrites = tw(6);
+    r.pScene.timestampWrites = TW[1]; draw(enc.beginRenderPass(r.pScene), pScene, gU.scene, gScene);
+    r.pTaa[k].timestampWrites = TW[2]; draw(enc.beginRenderPass(r.pTaa[k]), pTaa, gU.taa, r.gTaa[k]);
+    r.pPart.timestampWrites = TW[3];
     const pp = enc.beginRenderPass(r.pPart); pp.setPipeline(pPart); pp.setBindGroup(0, gU.part); pp.setBindGroup(1, r.gPart[k]); pp.draw(4, NPART); pp.end();
-    r.pMB.timestampWrites = tw(8); draw(enc.beginRenderPass(r.pMB), pMB, gU.mb, r.gMB);
+    r.pMB.timestampWrites = TW[4]; draw(enc.beginRenderPass(r.pMB), pMB, gU.mb, r.gMB);
     for (let i = 0; i < NB; i++) draw(enc.beginRenderPass(r.pDn[i]), pDown, null, r.gDn[i]);
     for (let i = NB - 2; i >= 0; i--) draw(enc.beginRenderPass(r.pUp[i]), pUp, null, r.gUp[i]);
-    r.pExpo[k].timestampWrites = tw(10); draw(enc.beginRenderPass(r.pExpo[k]), pExpo, gU.expo, r.gExpo[k]);
+    r.pExpo[k].timestampWrites = TW[5]; draw(enc.beginRenderPass(r.pExpo[k]), pExpo, gU.expo, r.gExpo[k]);
     const ct = ctx.getCurrentTexture();
-    r.pFin.colorAttachments[0].view = ct.createView(); r.pFin.timestampWrites = tw(12);
+    r.pFin.colorAttachments[0].view = ct.createView(); r.pFin.timestampWrites = TW[6];
     draw(enc.beginRenderPass(r.pFin), pFinal, gU.fin, r.gFin[k]);
     if (wantCap) { r.capSrc.texture = ct; enc.copyTextureToBuffer(r.capSrc, r.capDst, r.capSize); }
     let qb = null;
@@ -327,27 +343,43 @@
       const o = n * 6;
       log.parts[o] = Number(a[1] - a[0]) / 1e6; log.parts[o + 1] = Number(a[3] - a[2]) / 1e6; log.parts[o + 2] = Number(a[5] - a[4]) / 1e6;
       log.parts[o + 3] = Number(a[7] - a[6]) / 1e6; log.parts[o + 4] = Number(a[9] - a[8]) / 1e6; log.parts[o + 5] = Number(a[13] - a[10]) / 1e6;
-      log.cpu[n] = lastDt * 1000; log.n++;
+      log.cpu[n] = F[_dt] * 1000; log.n++;
       qb.unmap(); qFree.push(qb);
     });
   }
 
-  let last = 0, lastDt = 0;
+  // The frame functions take no number arguments and keep no numbers in closure variables: everything goes through F,
+  // so there is no boxed double to allocate between them.
+  function clock(now) {
+    F[_dt] = F[_last] > 0 ? Math.min(0.05, Math.max(0.001, (now - F[_last]) * 0.001)) : 1 / 60;
+    F[_last] = now;
+  }
   function loop(now) {
-    const dt = last ? Math.min(0.05, Math.max(0.001, (now - last) * 0.001)) : 1 / 60;
-    last = now; lastDt = dt;
-    sim(dt); render(dt);
+    clock(now); sim(); render();
     requestAnimationFrame(loop);
+  }
+  // Warm the JIT before the first frame. Until the optimising tier takes over, every double intermediate in
+  // sim/updateUniforms is a heap number; a few round trips of the real camera path (keys, both auto directions,
+  // both camera modes, the fixed-pose branch) get that out of the way during loading. State is restored after.
+  function warm() {
+    const f0 = F.slice(), u0 = UB.slice();
+    POSE[0] = 60; POSE[1] = 5; POSE[2] = 180; POSE[6] = 40;
+    for (let i = 0, now = 16; i < 60000; i++, now += 16.6) {
+      const ph = (i / 2500) | 0;
+      if (i % 2500 === 0) { F[_auto] = (ph & 1) + 1; F[_mode] = (ph >> 1) & 1; F[_keys] = ph % 5 === 4 ? 1 << (ph & 3) : 0; F[_pose] = ph % 7 === 6 ? 1 : 0; F[_straight] = (ph >> 2) & 1; F[_reset] = ph & 1; }
+      clock(now); sim(); updateUniforms(); F[_frame]++;
+    }
+    F.set(f0); UB.set(u0); POSE.fill(0);
   }
 
   // ---------------- hooks for the capture / test harness ----------------
   let sdfCpu = null;
   const f16 = (h) => { const e = (h >> 10) & 31, m = h & 1023, s = h & 0x8000 ? -1 : 1; return s * (e === 0 ? m * 2 ** -24 : e === 31 ? Infinity : (1 + m / 1024) * 2 ** (e - 15)); };
   window.__demo = {
-    S, log, size: () => [W, H],
+    S, log, size: () => [W, H], straightR: RS,
     async step(dt, cap, url) {
       wantCap = cap ? 1 : 0;
-      sim(dt); render(dt);
+      F[_dt] = dt; sim(); render();
       if (this.afterRender) this.afterRender();
       if (cap) {
         await R.capBuf.mapAsync(GPUMapMode.READ);
@@ -359,7 +391,7 @@
       } else await device.queue.onSubmittedWorkDone();
     },
     setPose(p) { if (p) { POSE.set(p); S.pose = 1; } else S.pose = 0; S.reset = 1; },
-    state() { return { d: S.d, goal: S.goal, target: S.target, az: S.az, mode: S.mode, auto: S.auto, cam: [UB[0], UB[1], UB[2]], rel: F[_lastY], fwd: [UB[12], UB[13], UB[14]], time: S.time, frame: S.frame, fmt: FMT }; },
+    state() { return { d: S.d, goal: S.goal, target: S.target, az: S.az, mode: S.mode, auto: S.auto, straight: S.straight, cam: [UB[0], UB[1], UB[2]], rel: F[_lastY], fwd: [UB[12], UB[13], UB[14]], time: S.time, frame: S.frame, fmt: FMT }; },
     camAt(d, az) { const y = camY(d), r = key(KR, y); return [Math.sin(az) * r, y, Math.cos(az) * r, key(KP, y)]; },
     async loadSdf() {
       const row = 256 * 2, buf = device.createBuffer({ size: row * 320 * 256, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
@@ -392,6 +424,7 @@
   };
   if (Q.has('nohud')) F[_hud] = 0;
   resize();
+  warm();
   bar.style.display = 'none';
   window.__demo.ready = true;
   if (!MANUAL) requestAnimationFrame(loop);

@@ -17,8 +17,16 @@ const sites = [];
 (function walk(n, stack) { const s = [...stack, n.callFrame.functionName || '(anon)']; if (n.selfSize > 0) sites.push({ bytes: n.selfSize, fn: n.callFrame.functionName || '(anon)', line: n.callFrame.lineNumber, url: n.callFrame.url.split('/').pop(), stack: s.slice(-4).join(' > ') }); (n.children || []).forEach(c => walk(c, s)); })(profile.head, []);
 sites.sort((a, b) => b.bytes - a.bytes);
 const frames = f1 - f0;
-const own = sites.filter(s => s.url.startsWith('index.html'));
+// render() is where the page calls the WebGPU API: the encoder, the pass encoders, the canvas texture and its view,
+// and the command buffer are new objects the API hands back every frame, and cannot be preallocated.
+// They are reported separately; anything sampled in any other function of the page is a failure.
+const mine = sites.filter(s => s.url.startsWith('index.html'));
+// Input handlers (key, wheel, pointer listeners) run per event, not per frame; only the frame loop's call tree counts.
+const inLoop = mine.filter(s => s.stack.includes('loop'));
+const api = inLoop.filter(s => s.fn === 'render'), own = inLoop.filter(s => s.fn !== 'render');
+console.log(`objetos devolvidos pela API WebGPU em render(): ${(api.reduce((p, c) => p + c.bytes, 0) / frames).toFixed(1)} B/quadro`);
 console.log(`quadros: ${frames}`);
 for (const s of sites) console.log(`${s.bytes} B  (${(s.bytes / frames).toFixed(1)} B/quadro)  ${s.stack}  [${s.url}:${s.line}]`);
-console.log(own.length ? `FALHOU: ${own.reduce((p, c) => p + c.bytes, 0)} B atribuídos ao código da página` : 'PASSOU: nenhuma alocação amostrada no código da página durante os quadros');
+console.log(own.length ? `FALHOU: ${own.reduce((p, c) => p + c.bytes, 0)} B (${(own.reduce((p, c) => p + c.bytes, 0) / frames).toFixed(1)} B/quadro) alocados pelo código da página fora das chamadas da API` : 'PASSOU: nenhuma alocação amostrada no código da página fora dos objetos da API WebGPU');
+process.exitCode = own.length ? 1 : 0;
 await browser.close(); srv.close();

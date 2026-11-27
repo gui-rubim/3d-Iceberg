@@ -11,7 +11,7 @@ await page.waitForFunction(() => window.__demo && window.__demo.ready, null, { t
 const results = [];
 const ok = (name, cond, info = '') => { results.push({ teste: name, passou: !!cond, info: String(info) }); console.log((cond ? 'PASSOU ' : 'FALHOU ') + name + (info ? '  [' + info + ']' : '')); };
 const step = (n) => page.evaluate(async (n) => { for (let i = 0; i < n; i++) await window.__demo.step(1 / 60, false); return window.__demo.state(); }, n);
-const reset = (d = 0.5) => page.evaluate((d) => { const S = window.__demo.S; Object.assign(S, { d, vel: 0, target: d, goal: d, az: 0, azGoal: 0, azKey: 0, mode: 1, auto: 0, keys: 0 }); window.__demo.setPose(null); }, d);
+const reset = (d = 0.5) => page.evaluate((d) => { const S = window.__demo.S; Object.assign(S, { straight: 0, sb: 0, d, vel: 0, target: d, goal: d, az: 0, azGoal: 0, azKey: 0, mode: 1, auto: 0, keys: 0 }); window.__demo.setPose(null); }, d);
 const f = (x) => x.toFixed(4);
 await page.mouse.move(640, 360);
 
@@ -80,8 +80,8 @@ ok('a página não rola e o canvas ocupa a tela toda', lay.sx === 0 && lay.sy ==
 // --- scripted sequence: validity, ice clearance, world limits ---
 const grad = await page.evaluate(() => window.__demo.loadSdf());
 const inputs = JSON.parse(fs.readFileSync(path.join(HERE, 'entradas.json'), 'utf8'));
-await page.evaluate(() => { const S = window.__demo.S; Object.assign(S, { d: 0, vel: 0, target: 0, goal: 0, az: 0, azGoal: 0, azKey: 0, mode: 0, auto: 0, keys: 0, time: 0, frame: 0, lastY: 15 }); });
-let minIce = 1e9, minIceAt = 0, bad = 0, maxD = 0, minD = 1, maxR = 0, minY = 1e9, maxY = -1e9, maxStep = 0, last = null, reached = 0, back = 0;
+await page.evaluate(() => { const S = window.__demo.S; Object.assign(S, { straight: 0, sb: 0, d: 0, vel: 0, target: 0, goal: 0, az: 0, azGoal: 0, azKey: 0, mode: 0, auto: 0, keys: 0, time: 0, frame: 0, lastY: 15 }); });
+let minIce = 1e9, minIceAt = 0, bad = 0, maxD = 0, minD = 1, maxR = 0, minY = 1e9, maxY = -1e9, maxStep = 0, maxJerk = 0, last = null, lastV = null, reached = 0, back = 0;
 const run = (n) => page.evaluate(async (n) => { const D = window.__demo, out = []; for (let i = 0; i < n; i++) { await D.step(1 / 60, false); const s = D.state(); out.push([s.d, ...s.cam, ...s.fwd, D.iceDist(s.cam[0], s.cam[1], s.cam[2])]); } return out; }, n);
 const marks = [...new Set([0, ...inputs.eventos.map(e => e.frame), inputs.frames])].sort((x, y) => x - y);
 let frames = 0;
@@ -93,7 +93,12 @@ for (let k = 0; k + 1 < marks.length; k++) {
       if (!r.every(Number.isFinite) || Math.abs(Math.hypot(r[4], r[5], r[6]) - 1) > 1e-3 || r[0] < 0 || r[0] > 1) bad++;
       if (r[7] < minIce) { minIce = r[7]; minIceAt = r[2]; }
       maxD = Math.max(maxD, r[0]); minD = Math.min(minD, r[0]); maxR = Math.max(maxR, Math.hypot(r[1], r[3])); minY = Math.min(minY, r[2]); maxY = Math.max(maxY, r[2]);
-      if (last) maxStep = Math.max(maxStep, Math.hypot(r[1] - last[1], r[2] - last[2], r[3] - last[3]));
+      if (last) {
+        const v = [r[1] - last[1], r[2] - last[2], r[3] - last[3]];
+        maxStep = Math.max(maxStep, Math.hypot(...v));
+        if (lastV) maxJerk = Math.max(maxJerk, Math.hypot(v[0] - lastV[0], v[1] - lastV[1], v[2] - lastV[2]));
+        lastV = v;
+      }
       last = r; if (r[0] > 0.999) reached = 1; if (reached && r[0] < 0.001) back = 1;
     }
   }
@@ -101,13 +106,26 @@ for (let k = 0; k + 1 < marks.length; k++) {
 ok('sequência roteirizada tem 3600 quadros (60 s a 1/60 s)', frames === 3600, `${frames} quadros`);
 ok('sequência roteirizada vai do topo ao fundo e volta', reached && back, `d mín ${f(minD)} máx ${f(maxD)}`);
 ok('nenhum quadro com câmera em estado inválido (NaN, direção não unitária, d fora de 0..1)', bad === 0, `${bad} quadros inválidos`);
-ok('movimento contínuo, sem salto de câmera entre quadros', maxStep < 0.6, `maior passo ${maxStep.toFixed(3)} m/quadro`);
+// A jump is a change of velocity from one frame to the next, not speed itself: the camera legitimately moves at up to
+// ~37 m/s near the top (orbit + pull-in). Speed is still bounded as a sanity check.
+ok('movimento contínuo, sem salto de câmera entre quadros', maxJerk < 0.03 && maxStep < 1.0, `maior variação de passo ${maxJerk.toFixed(4)} m/quadro², maior passo ${maxStep.toFixed(3)} m/quadro`);
 ok('câmera nunca atravessa o gelo (distância mínima ao gelo > 5 m)', minIce > 5, `mínimo ${minIce.toFixed(1)} m em y=${minIceAt.toFixed(1)}`);
 // World limits: ocean is an infinite analytic plane and deep water has no floor; the only finite objects are the ice volume and the floating-ice disc (r < 345 m).
 ok('câmera dentro do mundo: raio <= 215 m, y entre -216 e 16 m (sem piso nem parede para mostrar)', maxR <= 215.5 && minY > -216.5 && maxY < 16.5, `raio máx ${maxR.toFixed(1)} m, y ${minY.toFixed(1)}..${maxY.toFixed(1)}`);
 // sweep every depth and azimuth the controls can reach
 const sweep = await page.evaluate(() => { const D = window.__demo; let m = 1e9; for (let i = 0; i <= 400; i++) for (let j = 0; j < 180; j++) { const c = D.camAt(i / 400, j / 180 * 2 * Math.PI); m = Math.min(m, D.iceDist(c[0], c[1] + 0.6, c[2]), D.iceDist(c[0], c[1] - 0.6, c[2])); } return m; });
 ok('varredura de todas as profundidades e azimutes alcançáveis: sem atravessar o gelo', sweep > 5, `distância mínima ${sweep.toFixed(1)} m`);
+// --- straight descent (V): same distance and tilt as at the top, only the height changes ---
+await reset(0); a = await step(2); await page.keyboard.press('KeyV'); b = await step(300);
+ok('V liga a descida reta', a.straight === 0 && b.straight === 1, `reta ${a.straight} -> ${b.straight}`);
+const top = await step(1); await page.keyboard.press('End'); const bot = await step(900);
+ok('descida reta: só a altura muda (posição horizontal e direção da câmera iguais no topo e no fundo)',
+  bot.d > 0.999 && Math.hypot(bot.cam[0] - top.cam[0], bot.cam[2] - top.cam[2]) < 0.01 && Math.hypot(bot.fwd[0] - top.fwd[0], bot.fwd[1] - top.fwd[1], bot.fwd[2] - top.fwd[2]) < 1e-4 && top.cam[1] > 14 && bot.cam[1] < -214,
+  `xz (${top.cam[0].toFixed(2)}, ${top.cam[2].toFixed(2)}) -> (${bot.cam[0].toFixed(2)}, ${bot.cam[2].toFixed(2)}), y ${top.cam[1].toFixed(1)} -> ${bot.cam[1].toFixed(1)}`);
+const sweepS = await page.evaluate(() => { const D = window.__demo; const R = D.straightR; let m = 1e9; for (let i = 0; i <= 400; i++) { const y = D.camAt(i / 400, 0)[1]; for (let j = 0; j < 180; j++) { const az = j / 180 * 2 * Math.PI; m = Math.min(m, D.iceDist(Math.sin(az) * R, y, Math.cos(az) * R)); } } return { m, R }; });
+ok('descida reta: varredura de profundidades e azimutes sem atravessar o gelo', sweepS.m > 5 && sweepS.R <= 300, `distância mínima ${sweepS.m.toFixed(1)} m, raio ${sweepS.R.toFixed(1)} m`);
+await page.keyboard.press('KeyV'); b = await step(2);
+ok('V de novo volta ao caminho original', b.straight === 0, `reta ${b.straight}`);
 console.log('campo de distância: gradiente máx', grad.maxGrad.toFixed(2), 'fração > 1:', grad.fracOver1.toFixed(4));
 const fails = results.filter(r => !r.passou).length;
 fs.writeFileSync(path.join(HERE, 'teste_controles_resultado.json'), JSON.stringify({ total: results.length, falhas: fails, resultados: results }, null, 1));

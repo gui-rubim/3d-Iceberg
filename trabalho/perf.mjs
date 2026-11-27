@@ -13,7 +13,7 @@ const stats = (v) => { const s = [...v].sort((x, y) => x - y); const n = s.lengt
 if (mode === 'static') {
   for (const d of process.argv[3].split(',').map(Number)) {
     const r = await page.evaluate(async (d) => {
-      const D = window.__demo, S = D.S; S.d = S.target = S.goal = d; S.vel = 0; S.mode = 1; S.auto = 0;
+      const D = window.__demo, S = D.S; S.d = S.target = S.goal = d; S.vel = 0; S.mode = 1; S.straight = S.sb = 0; S.auto = 0;
       await new Promise(r => setTimeout(r, 1500)); const n0 = D.log.n;
       await new Promise(r => setTimeout(r, 4000)); const n1 = D.log.n;
       const g = [], parts = [0, 0, 0, 0, 0, 0];

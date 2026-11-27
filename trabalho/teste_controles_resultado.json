@@ -1,5 +1,5 @@
 {
- "total": 31,
+ "total": 35,
  "falhas": 0,
  "resultados": [
   {
@@ -100,7 +100,7 @@
   {
    "teste": "C troca para órbita lenta (azimute avança sozinho)",
    "passou": true,
-   "info": "modo=0 az -0.0001 -> -0.0560"
+   "info": "modo=0 az -0.0002 -> -0.1955"
   },
   {
    "teste": "C volta para câmera fixa de frente",
@@ -140,22 +140,42 @@
   {
    "teste": "movimento contínuo, sem salto de câmera entre quadros",
    "passou": true,
-   "info": "maior passo 0.507 m/quadro"
+   "info": "maior variação de passo 0.0290 m/quadro², maior passo 0.615 m/quadro"
   },
   {
    "teste": "câmera nunca atravessa o gelo (distância mínima ao gelo > 5 m)",
    "passou": true,
-   "info": "mínimo 38.6 m em y=-2.4"
+   "info": "mínimo 33.8 m em y=-4.9"
   },
   {
    "teste": "câmera dentro do mundo: raio <= 215 m, y entre -216 e 16 m (sem piso nem parede para mostrar)",
    "passou": true,
-   "info": "raio máx 205.3 m, y -215.0..15.0"
+   "info": "raio máx 205.5 m, y -215.0..15.0"
   },
   {
    "teste": "varredura de todas as profundidades e azimutes alcançáveis: sem atravessar o gelo",
    "passou": true,
-   "info": "distância mínima 33.2 m"
+   "info": "distância mínima 32.7 m"
+  },
+  {
+   "teste": "V liga a descida reta",
+   "passou": true,
+   "info": "reta 0 -> 1"
+  },
+  {
+   "teste": "descida reta: só a altura muda (posição horizontal e direção da câmera iguais no topo e no fundo)",
+   "passou": true,
+   "info": "xz (0.00, 280.00) -> (0.00, 280.00), y 15.0 -> -215.0"
+  },
+  {
+   "teste": "descida reta: varredura de profundidades e azimutes sem atravessar o gelo",
+   "passou": true,
+   "info": "distância mínima 134.1 m, raio 280.0 m"
+  },
+  {
+   "teste": "V de novo volta ao caminho original",
+   "passou": true,
+   "info": "reta 0"
   }
  ]
 }

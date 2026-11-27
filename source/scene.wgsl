@@ -141,7 +141,7 @@ fn chunkCell(cell: vec2f, ro: vec3f, rd: vec3f) -> vec4f {
   let c = (cell + 0.3 + 0.4 * h.xy) * CS;
   let rc = length(c);
   let prob = mix(0.2, 0.03, smoothstep(90., 330., rc));
-  if (h.z > prob || rc < 70. || rc > 335. || (rc > 105. && rc < 225.)) { return vec4f(-1.); }
+  if (h.z > prob || rc < 70. || rc > 335. || (rc > 105. && rc < 305.)) { return vec4f(-1.); }
   let g = h3(ci + vec3i(0, 0, 40));
   let r = 0.55 + 2.1 * g.x * g.x;
   let rs = vec3f(r * (1. + 0.8 * g.y), r * 0.45, r * (0.7 + 0.5 * g.z));
@@ -362,6 +362,10 @@ fn shadeIce(p: vec3f, n: vec3f, rd: vec3f, t: f32, pixA: f32, lv: vec4f, wh: f32
     let body = mix(vec3f(0.01, 0.06, 0.085), vec3f(0.10, 0.34, 0.42), select(0., 1., chunk)) * (downAmb(depth) + downMoon(depth) * 0.5) * (lv.a * 0.9 + lv.b * 0.6);
     let rim = pow(1. - ndv, 3.) * (downAmb(depth) * 0.55 + vec3f(0.004, 0.008, 0.016));
     below = alb * (ea * 2.4 + em * 1.6) + body + rim * 1.2 + select(vec3f(0.), downAmb(depth) * 0.6, chunk);
+    // deep fill: below ~30 m the downwelling light is gone, so the lower mass gets a soft cold light of its own
+    // (stronger on faces turned to the viewer and at grazing rims, so the relief still reads)
+    let deepK = smoothstep(-25., -110., p.y) * (1. + 1.1 * smoothstep(-110., -215., p.y)) * select(1., 0., chunk);
+    below += vec3f(0.032, 0.080, 0.130) * deepK * (0.25 + 0.75 * lv.g) * (0.30 + 0.55 * ndv + 0.9 * pow(1. - ndv, 3.)) * mix(0.75, 1.25, rough);
     if (!chunk) {
       let v = veinG(p);
       let taper = veinTaper(v.y, p.y);

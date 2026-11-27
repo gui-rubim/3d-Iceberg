@@ -15,7 +15,7 @@ console.log('ready in', Date.now() - t0, 'ms');
 if (a.grad) console.log(await page.evaluate(() => window.__demo.loadSdf()));
 const info = await page.evaluate(async ([d, az, frames, pose, time, url]) => {
   const D = window.__demo, S = D.S;
-  S.d = S.target = S.goal = d; S.az = S.azGoal = az; S.mode = 1; S.time = time; S.lastY = -1;
+  S.d = S.target = S.goal = d; S.az = S.azGoal = az; S.mode = 1; S.straight = S.sb = 0; S.time = time; S.lastY = -1;
   if (pose) D.setPose(pose);
   const t = performance.now();
   for (let i = 0; i < frames; i++) await D.step(1 / 60, i === frames - 1, url + '/f');
